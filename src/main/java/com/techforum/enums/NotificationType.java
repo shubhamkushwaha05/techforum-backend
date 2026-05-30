@@ -1,0 +1,6 @@
+package com.techforum.enums;
+public enum NotificationType {
+    NEW_ANSWER, ANSWER_VERIFIED, NEW_COMMENT, MENTION,
+    UPVOTE_POST, UPVOTE_ANSWER, POST_PINNED, WARNING_ISSUED,
+    MODERATION_ACTION, SYSTEM
+}
