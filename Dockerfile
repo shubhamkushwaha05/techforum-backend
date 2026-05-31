@@ -1,26 +1,19 @@
 # ── Stage 1: Build ────────────────────────────────────────
-FROM maven:3.9.9-eclipse-temurin-17 AS build
+# Use official Maven + JDK image — no need for mvnw or .mvn folder
+FROM maven:3.9.6-eclipse-temurin-17-alpine AS build
 WORKDIR /app
 
+# Copy pom.xml first — downloads dependencies as a separate layer
+# (only re-downloads when pom.xml changes, not on every code change)
 COPY pom.xml .
-COPY src ./src
+RUN mvn dependency:go-offline -B
 
-RUN mvn clean package -DskipTests
-
-FROM eclipse-temurin:17-jre-alpine
-WORKDIR /app
-
-COPY --from=build /app/target/*.jar app.jar
-
-EXPOSE 8080
-
-ENTRYPOINT ["java","-jar","app.jar"]
-
-# Copy source and build
+# Copy source code and build the JAR
 COPY src src
-RUN ./mvnw clean package -DskipTests -B
+RUN mvn clean package -DskipTests -B
 
 # ── Stage 2: Run ──────────────────────────────────────────
+# Use slim JRE-only image — much smaller than JDK
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
@@ -28,16 +21,17 @@ WORKDIR /app
 RUN addgroup -S spring && adduser -S spring -G spring
 USER spring
 
-# Copy JAR from build stage
+# Copy the built JAR from Stage 1
 COPY --from=build /app/target/techforum-*.jar app.jar
 
-# Expose port (Railway reads this)
+# Render uses PORT env variable — expose it
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+# Health check — Render uses this to know when app is ready
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
   CMD wget -qO- http://localhost:8080/api/auth/health || exit 1
 
+# Start the app with memory settings suitable for free tier (512MB RAM)
 ENTRYPOINT ["java", \
   "-XX:+UseContainerSupport", \
   "-XX:MaxRAMPercentage=75.0", \
